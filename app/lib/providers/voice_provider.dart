@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../constants/enums.dart' hide AgentType;
 
-import '../constants/enums.dart';
 import '../services/voice_service.dart';
 import '../controllers/app_ctrl.dart' as app_ctrl;
 
@@ -11,6 +11,7 @@ class VoiceProvider extends ChangeNotifier {
 
   // Voice state
   bool _isVoiceMode = false;
+  bool _isSessionReady = false;
   bool _isLiveVoiceActive = false;
   bool _showWaveform = false;
   VoiceState _voiceState = VoiceState.idle;
@@ -26,6 +27,7 @@ class VoiceProvider extends ChangeNotifier {
 
   // Getters
   bool get isVoiceMode => _isVoiceMode;
+  bool get isSessionReady => _isSessionReady;
   bool get isLiveVoiceActive => _isLiveVoiceActive;
   bool get showWaveform => _showWaveform;
   VoiceState get voiceState => _voiceState;
@@ -57,6 +59,11 @@ class VoiceProvider extends ChangeNotifier {
     return success;
   }
 
+  void setSessionReady(bool ready) {
+    _isSessionReady = ready;
+    notifyListeners();
+  }
+
   /// Toggle voice mode on/off
   Future<void> toggleVoiceMode({
     required app_ctrl.AppCtrl appCtrl,
@@ -69,33 +76,124 @@ class VoiceProvider extends ChangeNotifier {
     } else {
       await _deactivateVoiceMode(appCtrl, onVoiceModeDeactivated);
     }
+  }/// Activate voice mode
+Future<void> _activateVoiceMode(
+  app_ctrl.AppCtrl appCtrl,
+  String? newChatId,
+  VoidCallback? onVoiceModeActivated,
+) async {
+  // Clean up any existing voice sessions first
+  await cleanup();
+
+  // Connect to LiveKit if needed
+  if (appCtrl.connectionState == app_ctrl.ConnectionState.disconnected) {
+    await appCtrl.connect();
   }
 
-  /// Activate voice mode
-  Future<void> _activateVoiceMode(
-    app_ctrl.AppCtrl appCtrl,
-    String? newChatId,
-    VoidCallback? onVoiceModeActivated,
-  ) async {
-    // Clean up any existing voice sessions first
-    await cleanup();
+  _isVoiceMode = true;
+  _isSessionReady = false;
+  notifyListeners();
+  
+  // Secret dummy session to warm up LiveKit
+  await _performSecretWarmup(appCtrl);
+  
+  _isSessionReady = true;
+  
+  // Start live voice for appropriate agents
+  if (appCtrl.selectedAgent == app_ctrl.AgentType.attorney ||
+      appCtrl.selectedAgent == app_ctrl.AgentType.arabic) {
+    startLiveVoice();
+  }
 
-    // Connect to LiveKit if needed
-    if (appCtrl.connectionState == app_ctrl.ConnectionState.disconnected) {
-      await appCtrl.connect();
-    }
+  onVoiceModeActivated?.call();
+  notifyListeners();
+}
 
-    _isVoiceMode = true;
+/// Perform secret session warmup (invisible to user)
+Future<void> _performSecretWarmup(app_ctrl.AppCtrl appCtrl) async {
+  try {
+    // Phase 1: Quick dummy session setup (no audio, no UI feedback)
+    await _createDummySession(appCtrl);
     
-    // Start live voice for appropriate agents
-    if (appCtrl.selectedAgent == app_ctrl.AgentType.attorney ||
-        appCtrl.selectedAgent == app_ctrl.AgentType.arabic) {
-      startLiveVoice();
-    }
-
-    onVoiceModeActivated?.call();
-    notifyListeners();
+    // Phase 2: Let it initialize for a brief moment
+    await Future.delayed(Duration(milliseconds: 800));
+    
+    // Phase 3: Silently close dummy session
+    await _closeDummySession(appCtrl);
+    
+    // Phase 4: Brief pause before real session
+    await Future.delayed(Duration(milliseconds: 200));
+    
+    // Phase 5: Create the real session (this will work like "second run")
+    await _createRealSession(appCtrl);
+    
+  } catch (e) {
+    debugPrint('Secret warmup failed, proceeding with normal init: $e');
+    // Fallback to normal initialization
+    await _waitForActualConnection(appCtrl);
   }
+}
+
+/// Create dummy session for warmup
+Future<void> _createDummySession(app_ctrl.AppCtrl appCtrl) async {
+  // Temporarily switch to a silent agent or current agent with no audio
+  final originalAgent = appCtrl.selectedAgent;
+  
+  // Don't change UI, just establish connection infrastructure
+  if (appCtrl.connectionState == app_ctrl.ConnectionState.disconnected) {
+    await appCtrl.connect();
+  }
+  
+  // Wait for connection to be ready
+  for (int i = 0; i < 30; i++) {
+    await Future.delayed(Duration(milliseconds: 100));
+    if (appCtrl.connectionState == app_ctrl.ConnectionState.connected) {
+      break;
+    }
+  }
+  
+  // Give LiveKit a moment to fully initialize its transcription pipeline
+  await Future.delayed(Duration(milliseconds: 500));
+}
+
+/// Close dummy session
+Future<void> _closeDummySession(app_ctrl.AppCtrl appCtrl) async {
+  // Silently cleanup without affecting UI state
+  await _voiceService.cleanup();
+  
+  // Brief disconnect to reset everything
+  appCtrl.disconnect();
+  await Future.delayed(Duration(milliseconds: 100));
+}
+
+/// Create the real session (this works like "second run")
+Future<void> _createRealSession(app_ctrl.AppCtrl appCtrl) async {
+  // Reconnect for the real session
+  await appCtrl.connect();
+  
+  // Wait for connection
+  for (int i = 0; i < 30; i++) {
+    await Future.delayed(Duration(milliseconds: 100));
+    if (appCtrl.connectionState == app_ctrl.ConnectionState.connected) {
+      break;
+    }
+  }
+  
+  // Now the transcription system should work immediately like "second run"
+  await Future.delayed(Duration(milliseconds: 300));
+}
+
+Future<void> _waitForActualConnection(app_ctrl.AppCtrl appCtrl) async {
+  for (int i = 0; i < 50; i++) {
+    await Future.delayed(Duration(milliseconds: 100));
+    
+    if (appCtrl.connectionState == app_ctrl.ConnectionState.connected) {
+      await Future.delayed(Duration(milliseconds: 500));
+      return;
+    }
+  }
+}
+
 
   /// Deactivate voice mode
   Future<void> _deactivateVoiceMode(
@@ -105,6 +203,7 @@ class VoiceProvider extends ChangeNotifier {
     await cleanup();
     
     _isVoiceMode = false;
+    _isSessionReady = false;
     _isLiveVoiceActive = false;
     _showWaveform = false;
     
@@ -112,6 +211,15 @@ class VoiceProvider extends ChangeNotifier {
     
     onVoiceModeDeactivated?.call();
     notifyListeners();
+  }
+
+  Future<void> _waitForSession() async {
+    // Poll for session readiness
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(Duration(milliseconds: 100));
+      // Check if LiveKit session is actually ready
+      // This depends on your LiveKit integration
+    }
   }
 
   /// Start listening for speech input
@@ -133,11 +241,12 @@ class VoiceProvider extends ChangeNotifier {
   }
 
   /// Toggle listening state
-  Future<bool> toggleListening({app_ctrl.AgentType? agentType}) async {
-    return await _voiceService.toggleListening(
-      agentType: agentType,
-      isVoiceMode: _isVoiceMode,
-    );
+  Future<void> toggleListening({required app_ctrl.AgentType agentType}) async {
+    if (isListening) {
+      await stopListening();
+    } else {
+      await startListening(agentType: agentType);
+    }
   }
 
   /// Start live voice mode

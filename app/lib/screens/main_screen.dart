@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -222,22 +224,19 @@ class _MainScreenState extends State<MainScreen> {
                         ),
 
                         // Bottom controls
-                        Consumer<app_ctrl.AppCtrl>(
-                          builder: (context, appCtrl, child) => BottomControls(
-                            isVoiceMode: voiceProvider.isVoiceMode,
-                            onSendMessage: (message) {
-                              debugPrint(
-                                  '🎯 MainScreen received message to send: "$message"');
-                              _handleTextMessage(message);
-                            },
-                            showClickToTalkButton:
-                                _shouldShowClickToTalkButton(appCtrl),
-                            onToggleRecording: () =>
-                                voiceProvider.toggleListening(
-                              agentType: appCtrl.selectedAgent,
-                            ),
-                          ),
-                        ),
+                       Consumer<app_ctrl.AppCtrl>(
+  builder: (context, appCtrl, child) => BottomControls(
+    isVoiceMode: voiceProvider.isVoiceMode,
+    onSendMessage: (message) {
+      debugPrint('🎯 MainScreen received message to send: "$message"');
+      _handleTextMessage(message);
+    },
+    showClickToTalkButton: _shouldShowClickToTalkButton(appCtrl),
+    onToggleRecording: () => voiceProvider.toggleVoiceMode(
+      appCtrl: appCtrl,
+    ),
+  ),
+),
                       ],
                     ),
                   ),
@@ -980,84 +979,135 @@ How can I assist you today?
       ),
     ];
   }
+Widget _buildLiveTranscriptionChat() {
+  return Consumer2<app_ctrl.AppCtrl, VoiceProvider>(
+    builder: (context, appCtrl, voiceProvider, child) {
+      // Check session readiness FIRST, before checking messages
+      if (!voiceProvider.isSessionReady) {
+        return _buildSessionLoadingState();
+      }
 
-  /// LiveKit voice mode chat display with real-time transcriptions
-  Widget _buildLiveTranscriptionChat() {
-    return Consumer<app_ctrl.AppCtrl>(
-      builder: (context, appCtrl, child) {
-        if (messages.isEmpty) {
-          return _buildVoiceWelcomeMessage();
-        }
+      if (messages.isEmpty) {
+        return _buildVoiceWelcomeMessage();
+      }
 
-        // Use TranscriptionBuilder from livekit_components for real-time agent transcriptions
-        return components.TranscriptionBuilder(
-          builder: (context, transcriptions) {
-            final allDisplayItems = <Widget>[];
+      return components.TranscriptionBuilder(
+        key: ValueKey('transcription_ready_${voiceProvider.isSessionReady}_${DateTime.now().millisecondsSinceEpoch}'),
+        builder: (context, transcriptions) {
+          final allDisplayItems = <Widget>[];
 
-            // Add existing chat messages first
-            for (int i = 0; i < messages.length; i++) {
-              allDisplayItems.add(_buildMessageBubble(messages[i]));
-            }
+          for (int i = 0; i < messages.length; i++) {
+            allDisplayItems.add(_buildMessageBubble(messages[i]));
+          }
 
-            // Process real-time transcriptions from LiveKit
-            String currentUserInput = "";
-            String currentAIResponse = "";
+          String currentUserInput = "";
+          String currentAIResponse = "";
 
-            for (final transcription in transcriptions) {
-              final participantIdentity = transcription.participant.identity;
-              final participantName = transcription.participant.name;
+          for (final transcription in transcriptions) {
+            final participantIdentity = transcription.participant.identity;
+            final participantName = transcription.participant.name;
 
-              // Identify agent participants (HAAKEEM, agent, etc.)
-              final isAgent = participantIdentity.startsWith('agent-') ||
-                  participantIdentity == 'HAAKEEM' ||
-                  participantIdentity == 'agent' ||
-                  participantName == 'HAAKEEM Assistant' ||
-                  participantName.contains('HAAKEEM');
+            final isAgent = participantIdentity.startsWith('agent-') ||
+                participantIdentity == 'HAAKEEM' ||
+                participantIdentity == 'agent' ||
+                participantName == 'HAAKEEM Assistant' ||
+                participantName.contains('HAAKEEM');
 
-              final text = transcription.segment.text.trim();
-              if (text.isEmpty) continue;
+            final text = transcription.segment.text.trim();
+            if (text.isEmpty) continue;
 
-              if (isAgent) {
-                // Agent response - finish any pending user input first
-                if (currentUserInput.isNotEmpty) {
-                  allDisplayItems.add(_buildLiveChatBubble(currentUserInput, true));
-                  currentUserInput = "";
-                }
-                currentAIResponse += (currentAIResponse.isEmpty ? "" : " ") + text;
-              } else {
-                // User input - finish any pending agent response first
-                if (currentAIResponse.isNotEmpty) {
-                  allDisplayItems.add(_buildLiveChatBubble(currentAIResponse, false));
-                  currentAIResponse = "";
-                }
-                currentUserInput += (currentUserInput.isEmpty ? "" : " ") + text;
+            if (isAgent) {
+              if (currentUserInput.isNotEmpty) {
+                allDisplayItems.add(_buildLiveChatBubble(currentUserInput, true));
+                currentUserInput = "";
               }
+              currentAIResponse += (currentAIResponse.isEmpty ? "" : " ") + text;
+            } else {
+              if (currentAIResponse.isNotEmpty) {
+                allDisplayItems.add(_buildLiveChatBubble(currentAIResponse, false));
+                currentAIResponse = "";
+              }
+              currentUserInput += (currentUserInput.isEmpty ? "" : " ") + text;
             }
+          }
 
-            // Add any remaining content
-            if (currentUserInput.isNotEmpty) {
-              allDisplayItems.add(_buildLiveChatBubble(currentUserInput, true));
-            }
-            if (currentAIResponse.isNotEmpty) {
-              allDisplayItems.add(_buildLiveChatBubble(currentAIResponse, false));
-            }
+          if (currentUserInput.isNotEmpty) {
+            allDisplayItems.add(_buildLiveChatBubble(currentUserInput, true));
+          }
+          if (currentAIResponse.isNotEmpty) {
+            allDisplayItems.add(_buildLiveChatBubble(currentAIResponse, false));
+          }
 
-            if (allDisplayItems.isEmpty) {
-              return _buildVoiceWelcomeMessage();
-            }
+          if (allDisplayItems.isEmpty) {
+            return _buildVoiceWelcomeMessage();
+          }
 
-            return ListView.builder(
-              controller: _chatScrollController,
-              padding: const EdgeInsets.all(32),
-              itemCount: allDisplayItems.length,
-              itemBuilder: (context, index) => allDisplayItems[index],
-            );
-          },
-        );
-      },
-    );
-  }
+          return ListView.builder(
+            controller: _chatScrollController,
+            padding: const EdgeInsets.all(32),
+            itemCount: allDisplayItems.length,
+            itemBuilder: (context, index) => allDisplayItems[index],
+          );
+        },
+      );
+    },
+  );
+}
 
+Widget _buildSessionLoadingState() {
+  return Container(
+    padding: const EdgeInsets.all(32),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            color: AppColors.primaryGreen.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(40),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 60,
+                height: 60,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
+                ),
+              ),
+              Icon(
+                Icons.mic,
+                size: 30,
+                color: AppColors.primaryGreen,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          'Preparing Voice Assistant...',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Optimizing audio quality for best experience',
+          style: TextStyle(
+            fontSize: 14,
+            color: AppColors.textSecondary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ),
+  );
+}
   /// Build live transcription bubble (real-time speech recognition)
   Widget _buildLiveTranscriptionBubble(String transcription) {
     return Padding(
