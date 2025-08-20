@@ -4,6 +4,7 @@ enum SidebarMode {
   documents,
 }
 
+
 /// Extension for SidebarMode
 extension SidebarModeExtension on SidebarMode {
   String get displayName {
@@ -24,14 +25,8 @@ extension SidebarModeExtension on SidebarMode {
     }
   }
 }
+enum LegalLevel { beginner, expert }
 
-/// Enum for legal experience levels
-enum LegalLevel { 
-  beginner, 
-  expert,
-}
-
-/// Extension for LegalLevel
 extension LegalLevelExtension on LegalLevel {
   String get displayName {
     switch (this) {
@@ -41,22 +36,13 @@ extension LegalLevelExtension on LegalLevel {
         return 'Expert';
     }
   }
-  
-  String get description {
-    switch (this) {
-      case LegalLevel.beginner:
-        return 'Simple explanations';
-      case LegalLevel.expert:
-        return 'Technical details';
-    }
-  }
-  
+
   String get fullDescription {
     switch (this) {
       case LegalLevel.beginner:
-        return 'AI will explain legal concepts in simple terms with examples.';
+        return 'Simple explanations with practical examples';
       case LegalLevel.expert:
-        return 'AI will provide technical legal analysis with detailed citations.';
+        return 'Technical details with comprehensive citations';
     }
   }
 }

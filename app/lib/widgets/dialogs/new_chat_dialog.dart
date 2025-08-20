@@ -3,8 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../constants/app_constants.dart';
-import '../../constants/enums.dart';
-import '../../controllers/app_ctrl.dart';
+import '../../constants/enums.dart' ;
+import '../../controllers/app_ctrl.dart' hide LegalLevel;
 import '../../providers/chat_provider.dart';
 import '../../providers/voice_provider.dart';
 
