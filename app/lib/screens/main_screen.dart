@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:livekit_components/src/context/room_context.dart';
 
 import '../constants/app_constants.dart';
 import '../constants/enums.dart';
@@ -978,77 +979,89 @@ How can I assist you today?
         messageCount: 23,
       ),
     ];
-  }
-Widget _buildLiveTranscriptionChat() {
+  }Widget _buildLiveTranscriptionChat() {
   return Consumer2<app_ctrl.AppCtrl, VoiceProvider>(
     builder: (context, appCtrl, voiceProvider, child) {
-      // Check session readiness FIRST, before checking messages
       if (!voiceProvider.isSessionReady) {
         return _buildSessionLoadingState();
       }
 
-      if (messages.isEmpty) {
+      // Check connection state
+      if (appCtrl.connectionState != app_ctrl.ConnectionState.connected) {
+        return _buildSessionLoadingState();
+      }
+
+      final realMessages = messages.where((msg) => 
+        !msg.text.startsWith('🤖 Active agent:') && 
+        !msg.text.contains('Active agent:')
+      ).toList();
+
+      if (realMessages.isEmpty) {
         return _buildVoiceWelcomeMessage();
       }
 
-      return components.TranscriptionBuilder(
-        key: ValueKey('transcription_ready_${voiceProvider.isSessionReady}_${DateTime.now().millisecondsSinceEpoch}'),
-        builder: (context, transcriptions) {
-          final allDisplayItems = <Widget>[];
+      // Provide RoomContext for TranscriptionBuilder
+      return ChangeNotifierProvider<RoomContext>(
+        create: (context) => RoomContext(room: appCtrl.room),
+        child: components.TranscriptionBuilder(
+          builder: (context, transcriptions) {
+            final allDisplayItems = <Widget>[];
 
-          for (int i = 0; i < messages.length; i++) {
-            allDisplayItems.add(_buildMessageBubble(messages[i]));
-          }
-
-          String currentUserInput = "";
-          String currentAIResponse = "";
-
-          for (final transcription in transcriptions) {
-            final participantIdentity = transcription.participant.identity;
-            final participantName = transcription.participant.name;
-
-            final isAgent = participantIdentity.startsWith('agent-') ||
-                participantIdentity == 'HAAKEEM' ||
-                participantIdentity == 'agent' ||
-                participantName == 'HAAKEEM Assistant' ||
-                participantName.contains('HAAKEEM');
-
-            final text = transcription.segment.text.trim();
-            if (text.isEmpty) continue;
-
-            if (isAgent) {
-              if (currentUserInput.isNotEmpty) {
-                allDisplayItems.add(_buildLiveChatBubble(currentUserInput, true));
-                currentUserInput = "";
-              }
-              currentAIResponse += (currentAIResponse.isEmpty ? "" : " ") + text;
-            } else {
-              if (currentAIResponse.isNotEmpty) {
-                allDisplayItems.add(_buildLiveChatBubble(currentAIResponse, false));
-                currentAIResponse = "";
-              }
-              currentUserInput += (currentUserInput.isEmpty ? "" : " ") + text;
+            // Add existing messages
+            for (int i = 0; i < realMessages.length; i++) {
+              allDisplayItems.add(_buildMessageBubble(realMessages[i]));
             }
-          }
 
-          if (currentUserInput.isNotEmpty) {
-            allDisplayItems.add(_buildLiveChatBubble(currentUserInput, true));
-          }
-          if (currentAIResponse.isNotEmpty) {
-            allDisplayItems.add(_buildLiveChatBubble(currentAIResponse, false));
-          }
+            String currentUserInput = "";
+            String currentAIResponse = "";
 
-          if (allDisplayItems.isEmpty) {
-            return _buildVoiceWelcomeMessage();
-          }
+            for (final transcription in transcriptions) {
+              final participantIdentity = transcription.participant.identity;
+              final participantName = transcription.participant.name;
 
-          return ListView.builder(
-            controller: _chatScrollController,
-            padding: const EdgeInsets.all(32),
-            itemCount: allDisplayItems.length,
-            itemBuilder: (context, index) => allDisplayItems[index],
-          );
-        },
+              final isAgent = participantIdentity.startsWith('agent-') ||
+                  participantIdentity == 'HAAKEEM' ||
+                  participantIdentity == 'agent' ||
+                  participantName == 'HAAKEEM Assistant' ||
+                  participantName.contains('HAAKEEM');
+
+              final text = transcription.segment.text.trim();
+              if (text.isEmpty) continue;
+
+              if (isAgent) {
+                if (currentUserInput.isNotEmpty) {
+                  allDisplayItems.add(_buildLiveChatBubble(currentUserInput, true));
+                  currentUserInput = "";
+                }
+                currentAIResponse += (currentAIResponse.isEmpty ? "" : " ") + text;
+              } else {
+                if (currentAIResponse.isNotEmpty) {
+                  allDisplayItems.add(_buildLiveChatBubble(currentAIResponse, false));
+                  currentAIResponse = "";
+                }
+                currentUserInput += (currentUserInput.isEmpty ? "" : " ") + text;
+              }
+            }
+
+            if (currentUserInput.isNotEmpty) {
+              allDisplayItems.add(_buildLiveChatBubble(currentUserInput, true));
+            }
+            if (currentAIResponse.isNotEmpty) {
+              allDisplayItems.add(_buildLiveChatBubble(currentAIResponse, false));
+            }
+
+            if (allDisplayItems.isEmpty) {
+              return _buildVoiceWelcomeMessage();
+            }
+
+            return ListView.builder(
+              controller: _chatScrollController,
+              padding: const EdgeInsets.all(32),
+              itemCount: allDisplayItems.length,
+              itemBuilder: (context, index) => allDisplayItems[index],
+            );
+          },
+        ),
       );
     },
   );
