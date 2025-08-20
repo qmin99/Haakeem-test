@@ -1,0 +1,29 @@
+ # LiveKit Agents and plugins
+livekit-agents~=1.0
+livekit-agents[deepgram,groq,azure,silero]~=1.0
+livekit-plugins-noise-cancellation~=0.2
+livekit-api==1.0.3
+
+# Audio processing
+pydub>=0.25.1
+soundfile>=0.12.1
+
+# FastAPI and web server
+fastapi==0.111.0
+uvicorn[standard]==0.30.0
+python-multipart
+aiohttp>=3.8.0
+
+# Environment and utilities
+python-dotenv==1.0.0
+
+# File processing
+PyPDF2>=3.0.0
+python-docx>=0.8.11
+
+# Production dependencies for stability
+gunicorn==21.2.0  # Production WSGI server alternative
+certifi
+
+# Additional dependencies for audio processing
+ffmpeg-python  # For easier ffmpeg handling if needed
