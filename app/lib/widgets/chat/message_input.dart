@@ -14,6 +14,7 @@ import '../../providers/file_provider.dart';
 import '../../controllers/app_ctrl.dart' as app_ctrl;
 import '../voice/voice_input_button.dart';
 import '../file/attachment_preview.dart';
+import 'package:flutter/services.dart';
 
 /// Widget for message input with voice capabilities and file attachments
 class MessageInput extends StatefulWidget {
@@ -101,48 +102,58 @@ class _MessageInputState extends State<MessageInput> {
           width: voiceProvider.isListening ? 2 : 1,
         ),
       ),
-      child: TextField(
-        controller: _messageController,
-        focusNode: _focusNode,
-        decoration: InputDecoration(
-          hintText: voiceProvider.isListening 
-              ? AppStrings.messageInputListening
-              : AppStrings.messageInputHint,
-          hintStyle: GoogleFonts.inter(
+      child: KeyboardListener(
+  focusNode: FocusNode(),
+  onKeyEvent: (KeyEvent event) {
+    if (event is KeyDownEvent && 
+        event.logicalKey == LogicalKeyboardKey.enter &&
+        !HardwareKeyboard.instance.isShiftPressed) {
+      _sendMessage();
+    }
+  },
+        child: TextField(
+          controller: _messageController,
+          focusNode: _focusNode,
+          decoration: InputDecoration(
+            hintText: voiceProvider.isListening 
+                ? AppStrings.messageInputListening
+                : AppStrings.messageInputHint,
+            hintStyle: GoogleFonts.inter(
+              fontSize: AppSizes.fontSizeLarge,
+              color: voiceProvider.isListening 
+                  ? AppColors.primaryGreen.withOpacity(0.8)
+                  : AppColors.textSecondary,
+              fontStyle: voiceProvider.isListening 
+                  ? FontStyle.italic 
+                  : FontStyle.normal,
+            ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSizes.paddingXLarge,
+              vertical: AppSizes.fontSizeLarge,
+            ),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                VoiceInputButton(
+                  isListening: voiceProvider.isListening,
+                  speechEnabled: voiceProvider.hasMicPermission,
+                  onToggleListening: () => _toggleListening(voiceProvider),
+                ),
+                const SizedBox(width: AppSizes.paddingSmall),
+                _buildSendButton(),
+              ],
+            ),
+          ),
+          style: GoogleFonts.inter(
             fontSize: AppSizes.fontSizeLarge,
-            color: voiceProvider.isListening 
-                ? AppColors.primaryGreen.withOpacity(0.8)
-                : AppColors.textSecondary,
-            fontStyle: voiceProvider.isListening 
-                ? FontStyle.italic 
-                : FontStyle.normal,
+            color: AppColors.textPrimary,
           ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: AppSizes.paddingXLarge,
-            vertical: AppSizes.fontSizeLarge,
-          ),
-          suffixIcon: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              VoiceInputButton(
-                isListening: voiceProvider.isListening,
-                speechEnabled: voiceProvider.hasMicPermission,
-                onToggleListening: () => _toggleListening(voiceProvider),
-              ),
-              const SizedBox(width: AppSizes.paddingSmall),
-              _buildSendButton(),
-            ],
-          ),
+          maxLines: 6,
+          minLines: 1,
+          textInputAction: TextInputAction.send,
+          onSubmitted: (_) => _sendMessage(),
         ),
-        style: GoogleFonts.inter(
-          fontSize: AppSizes.fontSizeLarge,
-          color: AppColors.textPrimary,
-        ),
-        maxLines: 6,
-        minLines: 1,
-        textInputAction: TextInputAction.newline,
-        onSubmitted: (_) => _sendMessage(),
       ),
     );
   }
@@ -261,95 +272,62 @@ class _MessageInputState extends State<MessageInput> {
       ),
     );
   }
-
-  Widget _buildVoiceModeIndicator(app_ctrl.AppCtrl appCtrl) {
-    return Consumer<FileProvider>(
-      builder: (context, fileProvider, child) {
-        return Container(
-          padding: const EdgeInsets.all(AppSizes.paddingXXLarge),
-          decoration: const BoxDecoration(
-            color: AppColors.cardBackground,
-            border: Border(
-              top: BorderSide(color: AppColors.borderColor, width: 1),
-            ),
+Widget _buildVoiceModeIndicator(app_ctrl.AppCtrl appCtrl) {
+  return Consumer<FileProvider>(
+    builder: (context, fileProvider, child) {
+      return Container(
+        padding: const EdgeInsets.all(AppSizes.paddingXXLarge),
+        decoration: const BoxDecoration(
+          color: AppColors.cardBackground,
+          border: Border(
+            top: BorderSide(color: AppColors.borderColor, width: 1),
           ),
-          child: Column(
-            children: [
-              // Voice status indicator
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSizes.paddingXLarge,
-                  vertical: AppSizes.fontSizeLarge,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.accentGreen.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusMedium),
-                  border: Border.all(
-                    color: AppColors.accentGreen.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.graphic_eq_rounded,
-                      color: AppColors.accentGreen,
-                      size: AppSizes.iconLarge,
-                    ),
-                    const SizedBox(width: AppSizes.paddingSmall + 2),
-                    Expanded(
-                      child: Text(
-                        appCtrl.connectionState == app_ctrl.ConnectionState.connected
-                            ? _getVoiceModeStatusText(appCtrl.selectedAgent)
-                            : 'Connecting to HAAKEEM...',
-                        style: GoogleFonts.inter(
-                          fontSize: AppSizes.fontSizeLarge,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.accentGreen,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+        ),
+        child: Column(
+          children: [
+            // Voice status indicator
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSizes.paddingXLarge,
+                vertical: AppSizes.fontSizeLarge,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.accentGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMedium),
+                border: Border.all(
+                  color: AppColors.accentGreen.withOpacity(0.3),
+                  width: 1,
                 ),
               ),
-              
-              const SizedBox(height: AppSizes.paddingLarge),
-              
-              // Action buttons for voice mode
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Row(
                 children: [
-                  _buildActionButton(
-                    icon: Icons.attach_file,
-                    color: AppColors.accentBlue,
-                    label: 'Attach',
-                    onPressed: () => _handleAttachAction(fileProvider),
+                  const Icon(
+                    Icons.graphic_eq_rounded,
+                    color: AppColors.accentGreen,
+                    size: AppSizes.iconLarge,
                   ),
-                  const SizedBox(width: AppSizes.paddingMedium),
-                  _buildActionButton(
-                    icon: _isFileUploading 
-                        ? Icons.hourglass_empty 
-                        : Icons.upload_file,
-                    color: _isFileUploading ? Colors.grey : AppColors.accentGreen,
-                    label: _isFileUploading ? 'Sending...' : 'Send to Agent',
-                    onPressed: _isFileUploading ? null : () => _sendToAgent(fileProvider),
-                  ),
-                  const SizedBox(width: AppSizes.paddingMedium),
-                  _buildActionButton(
-                    icon: Icons.chat_outlined,
-                    color: AppColors.primaryGreen,
-                    label: 'Exit Voice',
-                    onPressed: () => _exitVoiceMode(),
+                  const SizedBox(width: AppSizes.paddingSmall + 2),
+                  Expanded(
+                    child: Text(
+                      appCtrl.connectionState == app_ctrl.ConnectionState.connected
+                          ? AppStrings.voiceModeListening
+                          : AppStrings.voiceModeConnecting,
+                      style: GoogleFonts.inter(
+                        fontSize: AppSizes.fontSizeLarge,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.accentGreen,
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
 
   String _getVoiceModeStatusText(dynamic selectedAgent) {
     // This would need proper typing based on the actual AgentType enum

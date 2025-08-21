@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../constants/app_constants.dart';
 import '../../models/chat_models.dart';
+import '../../providers/chat_provider.dart';
 import 'message_bubble.dart';
 
 /// Widget that displays a scrollable list of chat messages
@@ -27,15 +28,18 @@ class ChatMessageList extends StatelessWidget {
     }
 
     // Auto-scroll when new messages arrive
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (scrollController.hasClients && messages.isNotEmpty) {
+     WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (scrollController.hasClients && messages.isNotEmpty) {
+      final maxExtent = scrollController.position.maxScrollExtent;
+      if (maxExtent > 0) {
         scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
+          maxExtent,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
       }
-    });
+    }
+  });
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingXXLarge),
@@ -56,64 +60,62 @@ class ChatMessageList extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.all(AppSizes.paddingXXLarge * 2),
-      child: SingleChildScrollView(
-        child: Column(mainAxisAlignment: MainAxisAlignment.start, children: [
-          Container(
-            padding: const EdgeInsets.all(AppSizes.paddingXXLarge),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primaryGreen.withOpacity(0.1),
-                  AppColors.primaryGreen.withOpacity(0.05),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(AppSizes.borderRadiusXXLarge),
+Widget _buildEmptyState() {
+  return Container(
+    padding: const EdgeInsets.all(AppSizes.paddingXXLarge * 2),
+    child: SingleChildScrollView(
+      child: Column(mainAxisAlignment: MainAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.all(AppSizes.paddingXXLarge),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.primaryGreen.withOpacity(0.1),
+                AppColors.primaryGreen.withOpacity(0.05),
+              ],
             ),
-            child: Icon(
-              Icons.psychology_outlined,
-              size: 64,
-              color: AppColors.primaryGreen.withOpacity(0.7),
-            ),
+            borderRadius: BorderRadius.circular(AppSizes.borderRadiusXXLarge),
           ),
-          const SizedBox(height: AppSizes.paddingXXLarge),
-          Text(
-            'Welcome to Legal Assistant',
-            style: GoogleFonts.inter(
-              fontSize: AppSizes.fontSizeXXLarge + 4,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
-            textAlign: TextAlign.center,
+          child: Icon(
+            Icons.psychology_outlined,
+            size: 64,
+            color: AppColors.primaryGreen.withOpacity(0.7),
           ),
-          const SizedBox(height: AppSizes.paddingMedium),
-          Text(
-            isVoiceMode
-                ? 'Voice mode is ready. Start speaking to begin your legal consultation.'
-                : 'Start a conversation by typing your legal question below.',
-            style: GoogleFonts.inter(
-              fontSize: AppSizes.fontSizeLarge,
-              color: AppColors.textSecondary,
-              height: 1.5,
-            ),
-            textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSizes.paddingXXLarge),
+        Text(
+          'Welcome to Legal Assistant',
+          style: GoogleFonts.inter(
+            fontSize: AppSizes.fontSizeXXLarge + 4,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
           ),
-          const SizedBox(height: AppSizes.paddingXLarge),
-          if (!isVoiceMode) ...[
-            _buildSuggestionChip('Review my contract'),
-            const SizedBox(height: AppSizes.paddingSmall),
-            _buildSuggestionChip('Explain legal terms'),
-            const SizedBox(height: AppSizes.paddingSmall),
-            _buildSuggestionChip('Estate planning help'),
-          ],
-        ]),
-      ),
-    );
-  }
-
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSizes.paddingMedium),
+        Text(
+          isVoiceMode
+              ? 'Voice mode is ready. Start speaking to begin your legal consultation.'
+              : 'Start a conversation by typing your legal question below.',
+          style: GoogleFonts.inter(
+            fontSize: AppSizes.fontSizeLarge,
+            color: AppColors.textSecondary,
+            height: 1.5,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSizes.paddingXLarge),
+        if (!isVoiceMode) ...[
+          _buildSuggestionChip('Review my contract'),
+          const SizedBox(height: AppSizes.paddingSmall),
+          _buildSuggestionChip('Explain legal terms'),
+          const SizedBox(height: AppSizes.paddingSmall),
+          _buildSuggestionChip('Estate planning help'),
+        ],
+      ]),
+    ),
+  );
+}
   Widget _buildSuggestionChip(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(

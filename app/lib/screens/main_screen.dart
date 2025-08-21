@@ -34,7 +34,6 @@ import '../widgets/common/top_header.dart';
 import '../widgets/dialogs/settings_dialog.dart';
 import '../widgets/click_to_talk_controls.dart';
 
-/// Refactored main screen with clean architecture and separated components
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
 
@@ -45,35 +44,28 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   late ScrollController _chatScrollController;
 
-  // EXACT SAME STATE AS ORIGINAL WORKING CODE:
-  List<ChatMessage> messages = []; // Using exact same name as original
+  List<ChatMessage> messages = [];
   bool _isProcessingAI = false;
 
-  // File management state (exact same as original)
   List<AttachedFile> attachedFiles = [];
   Map<String, TextEditingController> filePromptControllers = {};
   bool _isUploading = false;
   bool _isFileUploading = false;
 
-  // Chat session state (exact same as original)
   String? currentChatId;
   Map<String, List<ChatMessage>> chatSessions = {};
   List<ChatSession> chatHistory = [];
   LegalLevel currentLegalLevel = LegalLevel.beginner as LegalLevel;
   bool isCreatingNewChat = false;
 
-  // File preview state
   UploadedFile? selectedFilePreview;
 
-  // Waveform positioning (from original working code)
   Offset waveformPosition = const Offset(640, 500);
   bool isDraggingWaveform = false;
 
-  // Scroll control state (from original)
   bool _isUserScrolling = false;
   double _scrollThreshold = 100.0;
 
-  // Drag and drop listeners
   StreamSubscription<html.Event>? _dragOverSub;
   StreamSubscription<html.MouseEvent>? _dropSub;
 
@@ -82,13 +74,10 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _chatScrollController = ScrollController();
 
-    // Initialize waveform data like original
     List<double> waveformData = List.generate(60, (index) => 0.0);
 
-    // Add scroll listener like original
     _chatScrollController.addListener(_onScroll);
 
-    // Initialize providers
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ChatProvider>().initialize();
       context.read<FileProvider>().initialize();
@@ -97,16 +86,11 @@ class _MainScreenState extends State<MainScreen> {
             onError: _handleVoiceError,
           );
 
-      // Setup agent message handlers to connect LiveKit to ChatProvider
       _setupAgentMessageHandlers();
-
-      // Load demo data like original
       _loadDemoData();
     });
 
-    // Setup drag-and-drop for web
     if (kIsWeb) {
-      // Allow dropping files anywhere on the page
       _dragOverSub = html.document.body?.onDragOver.listen((e) {
         e.preventDefault();
         e.stopPropagation();
@@ -142,20 +126,17 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
-    // Save current chat before disposing (like original)
     if (currentChatId != null && messages.isNotEmpty) {
       _saveChatSession();
     }
 
     _chatScrollController.dispose();
 
-    // Cancel drag-and-drop subscriptions
     _dragOverSub?.cancel();
     _dropSub?.cancel();
     _dragOverSub = null;
     _dropSub = null;
 
-    // Dispose all file prompt controllers (like original)
     for (var controller in filePromptControllers.values) {
       controller.dispose();
     }
@@ -173,7 +154,6 @@ class _MainScreenState extends State<MainScreen> {
             children: [
               Row(
                 children: [
-                  // Sidebar
                   ChatSidebar(
                     currentSidebarMode: chatProvider.currentSidebarMode,
                     chatHistory: chatProvider.chatHistory,
@@ -189,17 +169,14 @@ class _MainScreenState extends State<MainScreen> {
                     onDocumentUpload: fileProvider.uploadDocuments,
                   ),
 
-                  // Main content area
                   Expanded(
                     child: Column(
                       children: [
-                        // Top header
                         TopHeader(
                           onSettings: _showSettings,
                           onCall: _showCallDialog,
                         ),
 
-                        // Chat messages with LiveKit transcription support
                         Expanded(
                           child: voiceProvider.isVoiceMode
                               ? _buildLiveTranscriptionChat()
@@ -211,7 +188,6 @@ class _MainScreenState extends State<MainScreen> {
                                 ),
                         ),
 
-                        // Click-to-talk controls (when in voice mode with click-to-talk agents)
                         Consumer<app_ctrl.AppCtrl>(
                           builder: (context, appCtrl, child) => (voiceProvider
                                       .isVoiceMode &&
@@ -226,28 +202,26 @@ class _MainScreenState extends State<MainScreen> {
                               : const SizedBox.shrink(),
                         ),
 
-                        // Bottom controls
-                        Consumer<app_ctrl.AppCtrl>(
-                          builder: (context, appCtrl, child) => BottomControls(
-                            isVoiceMode: voiceProvider.isVoiceMode,
-                            onSendMessage: (message) {
-                              debugPrint(
-                                  '🎯 MainScreen received message to send: "$message"');
-                              _handleTextMessage(message);
-                            },
-                            showClickToTalkButton:
-                                _shouldShowClickToTalkButton(appCtrl),
-                            onToggleRecording: () =>
-                                voiceProvider.toggleListening(
-                              agentType: appCtrl.selectedAgent,
-                            ),
-                          ),
-                        ),
+                       Consumer<app_ctrl.AppCtrl>(
+  builder: (context, appCtrl, child) => BottomControls(
+    isVoiceMode: voiceProvider.isVoiceMode,
+    onSendMessage: (message) {
+      debugPrint(
+          'MainScreen received message to send: "$message"');
+      _handleTextMessage(message);
+    },
+    showClickToTalkButton:
+        _shouldShowClickToTalkButton(appCtrl),
+    onToggleRecording: () =>
+        voiceProvider.toggleListening(
+      agentType: appCtrl.selectedAgent,
+    ),
+  ),
+),
                       ],
                     ),
                   ),
 
-                  // File preview panel
                   if (fileProvider.selectedFilePreview != null)
                     FilePreviewPanel(
                       file: fileProvider.selectedFilePreview!,
@@ -262,7 +236,6 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
 
-              // Floating waveform display
               WaveformDisplay(
                 waveformData: voiceProvider.waveformData,
                 isVisible: voiceProvider.showWaveform,
@@ -270,9 +243,7 @@ class _MainScreenState extends State<MainScreen> {
                 isLiveVoiceActive: voiceProvider.isLiveVoiceActive,
                 isRecording: voiceProvider.isRecording,
                 liveTranscription: voiceProvider.liveTranscription,
-                onStop: () => voiceProvider.toggleVoiceMode(
-                  appCtrl: context.read<app_ctrl.AppCtrl>(),
-                ),
+                onStop: () => _toggleVoiceMode(voiceProvider, context.read<app_ctrl.AppCtrl>()),
               ),
             ],
           ),
@@ -282,16 +253,14 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _handleVoiceTranscription(String transcription) {
-    debugPrint(
-        '🎤➡️💬 Voice transcription received in main_screen: "$transcription"');
+    debugPrint('Voice transcription received in main_screen: "$transcription"');
     if (transcription.isNotEmpty) {
-      debugPrint(
-          '🎤➡️💬 Sending transcription via handleTextMessage: "$transcription"');
+      debugPrint('Sending transcription via handleTextMessage: "$transcription"');
       final chatProvider = context.read<ChatProvider>();
       chatProvider.addMessage(transcription, true);
       _handleTextMessage(transcription);
     } else {
-      debugPrint('🎤➡️💬 Skipping empty transcription');
+      debugPrint('Skipping empty transcription');
     }
   }
 
@@ -332,23 +301,10 @@ class _MainScreenState extends State<MainScreen> {
       appCtrl: appCtrl,
       newChatId: context.read<ChatProvider>().currentChatId,
       onVoiceModeActivated: () {
-        final chatProvider = context.read<ChatProvider>();
-        chatProvider.addMessage(
-          "Voice mode activated! ${_getLegalLevelMessage(chatProvider.currentLegalLevel)} Ready for your legal questions.",
-          false,
-        );
-        _scrollToBottom();
+        debugPrint('Voice mode activated - preserving existing chat');
       },
       onVoiceModeDeactivated: () {
-        final chatProvider = context.read<ChatProvider>();
-
-        setState(() {
-          messages.clear();
-          messages.addAll(chatProvider.messages);
-        });
-        chatProvider.saveChatSession();
-
-        _scrollToBottom();
+        debugPrint('Voice mode deactivated - preserving existing chat');
       },
     );
   }
@@ -362,7 +318,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _showCallDialog() {
-    // This would show the call dialog
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -390,17 +345,14 @@ class _MainScreenState extends State<MainScreen> {
     String prompt,
     ChatProvider chatProvider,
   ) {
-    // Convert file to AttachedFile and send with prompt
     final message = "$prompt\n📄 ${file.name}";
     chatProvider.sendMessageToAI(message);
 
-    // Close file preview
     context.read<FileProvider>().selectFileForPreview(null);
     _scrollToBottom();
   }
 
   bool _shouldShowClickToTalkButton(app_ctrl.AppCtrl appCtrl) {
-    // This would check if the current agent supports click-to-talk
     return appCtrl.selectedAgent == app_ctrl.AgentType.clickToTalk ||
         appCtrl.selectedAgent == app_ctrl.AgentType.arabicClickToTalk;
   }
@@ -417,14 +369,13 @@ class _MainScreenState extends State<MainScreen> {
 
     appCtrl.setupAgentMessageHandlers(
       onAgentMessage: (message) {
-        debugPrint('📥 Adding agent message to chat: $message');
-        // Add to both ChatProvider (for persistence) and local display
+        debugPrint('Adding agent message to chat: $message');
         chatProvider.handleAgentResponse(message);
         _addMessage(message, false);
         _scrollToBottom();
       },
       onError: (error) {
-        debugPrint('❌ Agent error: $error');
+        debugPrint('Agent error: $error');
         chatProvider.handleAgentResponse('Error: $error');
         _addMessage('Error: $error', false);
         _scrollToBottom();
@@ -432,61 +383,28 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // Handle text messages sent from UI (EXACT SAME AS ORIGINAL)
   void _handleTextMessage(String message) {
-    if (message.trim().isEmpty && attachedFiles.isEmpty) {
-      debugPrint('🎯 Skipping empty message with no attachments');
-      return;
-    }
-
-    debugPrint(
-        '🎯 Handling text message: "$message" with ${attachedFiles.length} attachments');
-
-    // Build full message with attachments like original code
-    String fullMessage = message.trim();
-    if (attachedFiles.isNotEmpty) {
-      fullMessage += '\n\n[Attachments]:';
-      for (var file in attachedFiles) {
-        fullMessage += '\n📄 ${file.name}';
-        if (file.prompt != null && file.prompt!.isNotEmpty) {
-          fullMessage += ' - Instructions: ${file.prompt}';
-        }
-      }
-    }
-
-    // Add user message to display immediately (with attachments) - SAME AS ORIGINAL
-    _addMessage(fullMessage, true, attachedFiles: List.from(attachedFiles));
-
-    // Clear attachments after sending
-    _clearAttachments();
-
-    // Add typing indicator
-    setState(() {
-      _isProcessingAI = true;
-    });
-    _addMessage("Processing your request...", false, isTyping: true);
-
-    // Send to both systems for backward compatibility
+    if (message.trim().isEmpty) return;
+    
+    _addMessage(message.trim(), true);
+    _addMessage('', false, isTyping: true);
+    
     final chatProvider = context.read<ChatProvider>();
     final voiceProvider = context.read<VoiceProvider>();
 
     if (voiceProvider.isVoiceMode) {
-      // Voice mode - send to LiveKit agent
-      debugPrint('🎯 Sending to voice mode/LiveKit agent');
+      debugPrint('Sending to voice mode/LiveKit agent');
       final appCtrl = context.read<app_ctrl.AppCtrl>();
       appCtrl.messageCtrl.text = message;
       appCtrl.sendMessage().then((_) {
-        // Remove typing indicator when done
         _removeTypingIndicator();
       }).catchError((error) {
         _removeTypingIndicator();
         _addMessage('Error: $error', false);
       });
     } else {
-      // Text mode - send to ChatProvider (Gemini)
-      debugPrint('🎯 Sending to text mode/Gemini');
+      debugPrint('Sending to text mode/Gemini');
       chatProvider.sendMessageToAI(message).then((_) {
-        // Get the response from ChatProvider and add to local display
         if (chatProvider.messages.isNotEmpty) {
           final lastMessage = chatProvider.messages.last;
           if (!lastMessage.isUser && !_hasMessageInLocal(lastMessage.text)) {
@@ -503,7 +421,6 @@ class _MainScreenState extends State<MainScreen> {
     _scrollToBottom();
   }
 
-  // EXACT SAME AS ORIGINAL _addMessage function
   void _addMessage(String text, bool isUser,
       {bool isTyping = false, List<AttachedFile> attachedFiles = const []}) {
     if (!mounted) return;
@@ -521,7 +438,7 @@ class _MainScreenState extends State<MainScreen> {
       _scrollToBottom(force: isUser);
     }
 
-    debugPrint('🎯 Added message (isUser: $isUser): "$text"');
+    debugPrint('Added message (isUser: $isUser): "$text"');
   }
 
   void _removeTypingIndicator() {
@@ -535,7 +452,6 @@ class _MainScreenState extends State<MainScreen> {
     return messages.any((msg) => msg.text == text && !msg.isUser);
   }
 
-  // EXACT SAME scroll functions as original
   bool get _isNearBottom {
     if (!_chatScrollController.hasClients) return true;
     return _chatScrollController.position.pixels >=
@@ -582,7 +498,6 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  /// File management functions (from original working code)
   void _clearAttachments() {
     for (var controller in filePromptControllers.values) {
       controller.dispose();
@@ -718,7 +633,6 @@ class _MainScreenState extends State<MainScreen> {
       }
 
       try {
-        // Create dynamic options object since we don't have proper import
         final options = {
           'topic': 'files',
           'mimeType': mimeType,
@@ -943,20 +857,17 @@ class _MainScreenState extends State<MainScreen> {
       final voiceProvider = context.read<VoiceProvider>();
       final appCtrl = context.read<app_ctrl.AppCtrl>();
       await voiceProvider.toggleVoiceMode(appCtrl: appCtrl);
-      _addMessage(
-          "Voice mode activated! $levelMessage Ready for your legal questions.",
-          false);
     } else {
       String welcomeMessage =
           '''Hello! I'm your AI Legal Assistant powered by Gemini. $levelMessage
 
 I can help you with:
-• Legal document analysis and review
-• Contract interpretation and key terms
-• Legal research and case law
-• Compliance and regulatory questions
-• Estate planning guidance
-• Business law matters
+- Legal document analysis and review
+- Contract interpretation and key terms
+- Legal research and case law
+- Compliance and regulatory questions
+- Estate planning guidance
+- Business law matters
 
 How can I assist you today?
 ''';
@@ -970,7 +881,6 @@ How can I assist you today?
   }
 
   void _loadDemoData() {
-    // Demo chat history like original
     chatHistory = [
       ChatSession(
         id: '1',
@@ -996,7 +906,6 @@ How can I assist you today?
     ];
   }
 
-  /// LiveKit voice mode chat display with real-time transcriptions
   Widget _buildLiveTranscriptionChat() {
     return Consumer2<app_ctrl.AppCtrl, VoiceProvider>(
       builder: (context, appCtrl, voiceProvider, child) {
@@ -1133,7 +1042,6 @@ How can I assist you today?
     );
   }
 
-  /// Build live transcription bubble (real-time speech recognition)
   Widget _buildLiveTranscriptionBubble(String transcription) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -1200,7 +1108,6 @@ How can I assist you today?
     );
   }
 
-  /// Build regular message bubble for non-voice conversations
   Widget _buildMessageBubble(ChatMessage message) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -1300,7 +1207,6 @@ How can I assist you today?
     );
   }
 
-  /// Build attached files preview
   Widget _buildAttachedFilesPreview(List<AttachedFile> files, bool isUser) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1313,7 +1219,6 @@ How can I assist you today?
     );
   }
 
-  /// Build file item for message
   Widget _buildMessageFileItem(AttachedFile file, bool isUser) {
     return Container(
       constraints: const BoxConstraints(maxWidth: 200),
@@ -1353,7 +1258,6 @@ How can I assist you today?
     );
   }
 
-  /// Get file icon based on type
   IconData _getFileIcon(MyFileType type) {
     switch (type) {
       case MyFileType.pdf:
@@ -1371,7 +1275,6 @@ How can I assist you today?
     }
   }
 
-  /// Build typing indicator
   Widget _buildTypingIndicator() {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -1391,7 +1294,6 @@ How can I assist you today?
     );
   }
 
-  /// Build live chat bubble for voice conversations
   Widget _buildLiveChatBubble(String text, bool isUser) {
     if (!isUser && _isNearBottom) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1472,8 +1374,16 @@ How can I assist you today?
     );
   }
 
-  /// Build voice welcome message
   Widget _buildVoiceWelcomeMessage() {
+    if (messages.isNotEmpty) {
+      return ChatMessageList(
+        messages: messages,
+        scrollController: _chatScrollController,
+        isVoiceMode: true,
+        isProcessingAI: _isProcessingAI,
+      );
+    }
+    
     return Container(
       padding: const EdgeInsets.all(32),
       child: Column(

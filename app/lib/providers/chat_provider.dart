@@ -204,37 +204,35 @@ class ChatProvider extends ChangeNotifier {
       }
     }
   }
+void createNewChat({bool isVoiceMode = false, LegalLevel? legalLevel}) {
+  // Only create new chat if explicitly requested, not during mode switches
+  saveChatSession(); // Save current chat before creating new one
+  _currentChatId = DateTime.now().millisecondsSinceEpoch.toString();
+  _messages.clear();
+  _currentLegalLevel = legalLevel ?? LegalLevel.beginner;
 
-  /// Create a new chat
-  void createNewChat({required bool isVoiceMode, LegalLevel? legalLevel}) {
-    saveChatSession(); // Save current chat before creating new one
-    _currentChatId = DateTime.now().millisecondsSinceEpoch.toString();
-    _messages.clear();
-    _currentLegalLevel = legalLevel ?? LegalLevel.beginner;
+  String levelMessage = _currentLegalLevel == LegalLevel.beginner
+      ? "I'll explain legal concepts in simple, easy-to-understand terms with practical examples."
+      : "I'll provide detailed legal analysis with technical terminology and comprehensive citations.";
 
-    String levelMessage = _currentLegalLevel == LegalLevel.beginner
-        ? "I'll explain legal concepts in simple, easy-to-understand terms with practical examples."
-        : "I'll provide detailed legal analysis with technical terminology and comprehensive citations.";
-
-    if (!isVoiceMode) {
-      String welcomeMessage =
-          '''Hello! I'm your AI Legal Assistant powered by Gemini. $levelMessage
+  // Only add welcome message for actual new chats, not mode switches
+  if (!isVoiceMode) {
+    String welcomeMessage = '''Hello! I'm your AI Legal Assistant powered by Gemini. $levelMessage
 
 I can help you with:
-• Legal document analysis and review
-• Contract interpretation and key terms
-• Legal research and case law
-• Compliance and regulatory questions
-• Estate planning guidance
-• Business law matters
+- Legal document analysis and review
+- Contract interpretation and key terms
+- Legal research and case law
+- Compliance and regulatory questions
+- Estate planning guidance
+- Business law matters
 
 How can I assist you today?
 ''';
-      addMessage(welcomeMessage, false);
-    }
-    notifyListeners();
+    addMessage(welcomeMessage, false);
   }
-
+  notifyListeners();
+}
   /// Save current chat session
   void saveChatSession() {
     if (_currentChatId == null || _messages.isEmpty) return;
@@ -336,12 +334,14 @@ How can I assist you today?
   }
 
   /// Clear current chat
-  void clearCurrentChat() {
+ void clearCurrentChat({bool isVoiceModeSwitch = false}) {
+  if (!isVoiceModeSwitch) {
     saveChatSession();
     _currentChatId = null;
     _messages.clear();
-    notifyListeners();
   }
+  notifyListeners();
+}
 
   /// Export current chat as JSON
   String exportCurrentChatAsJson() {

@@ -78,8 +78,8 @@ class VoiceProvider extends ChangeNotifier {
     } else {
       await _deactivateVoiceMode(appCtrl, onVoiceModeDeactivated);
     }
-  }/// Activate voice mode
-Future<void> _activateVoiceMode(
+  }
+  Future<void> _activateVoiceMode(
   app_ctrl.AppCtrl appCtrl,
   String? newChatId,
   VoidCallback? onVoiceModeActivated,
@@ -108,35 +108,50 @@ Future<void> _activateVoiceMode(
     startLiveVoice();
   }
 
+  // DON'T call any chat clearing here
   onVoiceModeActivated?.call();
   notifyListeners();
 }
 
-/// Perform secret session warmup (invisible to user)
 Future<void> _performSecretWarmup(app_ctrl.AppCtrl appCtrl) async {
   try {
-    // Phase 1: Quick dummy session setup (no audio, no UI feedback)
+    // Phase 1: Mute audio output during warmup
+    await _muteAudioOutput(appCtrl);
+    
+    // Phase 2: Quick dummy session setup (no audio, no UI feedback)
     await _createDummySession(appCtrl);
     
-    // Phase 2: Let it initialize for a brief moment
+    // Phase 3: Let it initialize for a brief moment
     await Future.delayed(Duration(milliseconds: 800));
     
-    // Phase 3: Silently close dummy session
+    // Phase 4: Silently close dummy session
     await _closeDummySession(appCtrl);
     
-    // Phase 4: Brief pause before real session
+    // Phase 5: Brief pause before real session
     await Future.delayed(Duration(milliseconds: 200));
     
-    // Phase 5: Create the real session (this will work like "second run")
+    // Phase 6: Restore audio output
+    await _restoreAudioOutput(appCtrl);
+    
+    // Phase 7: Create the real session (this will work like "second run")
     await _createRealSession(appCtrl);
     
   } catch (e) {
     debugPrint('Secret warmup failed, proceeding with normal init: $e');
-    // Fallback to normal initialization
+    await _restoreAudioOutput(appCtrl); // Ensure audio is restored on error
     await _waitForActualConnection(appCtrl);
   }
 }
 
+Future<void> _muteAudioOutput(app_ctrl.AppCtrl appCtrl) async {
+  // Mute the room audio temporarily
+  await appCtrl.room!.localParticipant?.setMicrophoneEnabled(false);
+}
+
+Future<void> _restoreAudioOutput(app_ctrl.AppCtrl appCtrl) async {
+  // Restore audio after warmup
+  await appCtrl.room!.localParticipant?.setMicrophoneEnabled(true);
+}
 /// Create dummy session for warmup
 Future<void> _createDummySession(app_ctrl.AppCtrl appCtrl) async {
   // Temporarily switch to a silent agent or current agent with no audio
@@ -199,22 +214,25 @@ Future<void> _waitForActualConnection(app_ctrl.AppCtrl appCtrl) async {
 
 
   /// Deactivate voice mode
-  Future<void> _deactivateVoiceMode(
-    app_ctrl.AppCtrl appCtrl,
-    VoidCallback? onVoiceModeDeactivated,
-  ) async {
-    await cleanup();
-    
-    _isVoiceMode = false;
-    _isSessionReady = false;
-    _isLiveVoiceActive = false;
-    _showWaveform = false;
-    
-    appCtrl.disconnect();
-    
-    onVoiceModeDeactivated?.call();
-    notifyListeners();
-  }
+  
+Future<void> _deactivateVoiceMode(
+  app_ctrl.AppCtrl appCtrl,
+  VoidCallback? onVoiceModeDeactivated,
+) async {
+  await cleanup();
+  stopLiveVoice();
+  
+  _isVoiceMode = false;
+  _isSessionReady = false;
+  _isLiveVoiceActive = false;
+  _showWaveform = false;
+  
+  // DON'T disconnect or clear chat - just stop voice features
+  // appCtrl.disconnect(); // REMOVE THIS LINE
+  
+  onVoiceModeDeactivated?.call();
+  notifyListeners();
+}
 
   Future<void> _waitForSession() async {
     // Poll for session readiness
