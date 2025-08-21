@@ -277,7 +277,7 @@ Future<void> sendClickToTalkResponse() async {
     } catch (e) {
       debugPrint('❌ Connection error: $e');
       connectionState = ConnectionState.disconnected;
-      appScreenState = AppScreenState.welcome;
+      // appScreenState = AppScreenState.welcome;
       notifyListeners();
     }
   }

@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_const_constructors
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../constants/enums.dart' hide AgentType;
@@ -93,7 +95,8 @@ Future<void> _activateVoiceMode(
   _isVoiceMode = true;
   _isSessionReady = false;
   notifyListeners();
-  
+  await Future.delayed(Duration(milliseconds: 1000));
+
   // Secret dummy session to warm up LiveKit
   await _performSecretWarmup(appCtrl);
   

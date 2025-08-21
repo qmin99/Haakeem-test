@@ -213,9 +213,12 @@ class _MainScreenState extends State<MainScreen> {
 
                         // Click-to-talk controls (when in voice mode with click-to-talk agents)
                         Consumer<app_ctrl.AppCtrl>(
-                          builder: (context, appCtrl, child) => (voiceProvider.isVoiceMode &&
-                                  (appCtrl.selectedAgent == app_ctrl.AgentType.clickToTalk ||
-                                      appCtrl.selectedAgent == app_ctrl.AgentType.arabicClickToTalk))
+                          builder: (context, appCtrl, child) => (voiceProvider
+                                      .isVoiceMode &&
+                                  (appCtrl.selectedAgent ==
+                                          app_ctrl.AgentType.clickToTalk ||
+                                      appCtrl.selectedAgent ==
+                                          app_ctrl.AgentType.arabicClickToTalk))
                               ? Container(
                                   padding: const EdgeInsets.all(16),
                                   child: const ClickToTalkControls(),
@@ -284,6 +287,8 @@ class _MainScreenState extends State<MainScreen> {
     if (transcription.isNotEmpty) {
       debugPrint(
           '🎤➡️💬 Sending transcription via handleTextMessage: "$transcription"');
+      final chatProvider = context.read<ChatProvider>();
+      chatProvider.addMessage(transcription, true);
       _handleTextMessage(transcription);
     } else {
       debugPrint('🎤➡️💬 Skipping empty transcription');
@@ -335,7 +340,15 @@ class _MainScreenState extends State<MainScreen> {
         _scrollToBottom();
       },
       onVoiceModeDeactivated: () {
-        context.read<ChatProvider>().saveChatSession();
+        final chatProvider = context.read<ChatProvider>();
+
+        setState(() {
+          messages.clear();
+          messages.addAll(chatProvider.messages);
+        });
+        chatProvider.saveChatSession();
+
+        _scrollToBottom();
       },
     );
   }
@@ -984,133 +997,142 @@ How can I assist you today?
   }
 
   /// LiveKit voice mode chat display with real-time transcriptions
- Widget _buildLiveTranscriptionChat() {
-  return Consumer2<app_ctrl.AppCtrl, VoiceProvider>(
-    builder: (context, appCtrl, voiceProvider, child) {
-      if (messages.isEmpty) {
-        return _buildVoiceWelcomeMessage();
-      }
+  Widget _buildLiveTranscriptionChat() {
+    return Consumer2<app_ctrl.AppCtrl, VoiceProvider>(
+      builder: (context, appCtrl, voiceProvider, child) {
+        if (messages.isEmpty) {
+          return _buildVoiceWelcomeMessage();
+        }
 
-      if (!voiceProvider.isSessionReady) {
-        return _buildSessionLoadingState();
-      }
+        if (!voiceProvider.isSessionReady) {
+          return _buildSessionLoadingState();
+        }
 
-      return components.TranscriptionBuilder(
-        key: ValueKey('transcription_${DateTime.now().millisecondsSinceEpoch}'),
-        builder: (context, transcriptions) {
-          final allDisplayItems = <Widget>[];
+        return components.TranscriptionBuilder(
+          key: ValueKey(
+              'transcription_${DateTime.now().millisecondsSinceEpoch}'),
+          builder: (context, transcriptions) {
+            final allDisplayItems = <Widget>[];
 
-          for (int i = 0; i < messages.length; i++) {
-            allDisplayItems.add(_buildMessageBubble(messages[i]));
-          }
-
-          String currentUserInput = "";
-          String currentAIResponse = "";
-
-          for (final transcription in transcriptions) {
-            final participantIdentity = transcription.participant.identity;
-            final participantName = transcription.participant.name;
-
-            final isAgent = participantIdentity.startsWith('agent-') ||
-                participantIdentity == 'HAAKEEM' ||
-                participantIdentity == 'agent' ||
-                participantName == 'HAAKEEM Assistant' ||
-                participantName.contains('HAAKEEM');
-
-            final text = transcription.segment.text.trim();
-            if (text.isEmpty) continue;
-
-            if (isAgent) {
-              if (currentUserInput.isNotEmpty) {
-                allDisplayItems.add(_buildLiveChatBubble(currentUserInput, true));
-                currentUserInput = "";
-              }
-              currentAIResponse += (currentAIResponse.isEmpty ? "" : " ") + text;
-            } else {
-              if (currentAIResponse.isNotEmpty) {
-                allDisplayItems.add(_buildLiveChatBubble(currentAIResponse, false));
-                currentAIResponse = "";
-              }
-              currentUserInput += (currentUserInput.isEmpty ? "" : " ") + text;
+            for (int i = 0; i < messages.length; i++) {
+              allDisplayItems.add(_buildMessageBubble(messages[i]));
             }
-          }
 
-          if (currentUserInput.isNotEmpty) {
-            allDisplayItems.add(_buildLiveChatBubble(currentUserInput, true));
-          }
-          if (currentAIResponse.isNotEmpty) {
-            allDisplayItems.add(_buildLiveChatBubble(currentAIResponse, false));
-          }
+            String currentUserInput = "";
+            String currentAIResponse = "";
 
-          if (allDisplayItems.isEmpty) {
-            return _buildVoiceWelcomeMessage();
-          }
+            for (final transcription in transcriptions) {
+              final participantIdentity = transcription.participant.identity;
+              final participantName = transcription.participant.name;
 
-          return ListView.builder(
-            controller: _chatScrollController,
-            padding: const EdgeInsets.all(32),
-            itemCount: allDisplayItems.length,
-            itemBuilder: (context, index) => allDisplayItems[index],
-          );
-        },
-      );
-    },
-  );
-}
-Widget _buildSessionLoadingState() {
-  return Container(
-    padding: const EdgeInsets.all(32),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            color: AppColors.primaryGreen.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(40),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 60,
-                height: 60,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
+              final isAgent = participantIdentity.startsWith('agent-') ||
+                  participantIdentity == 'HAAKEEM' ||
+                  participantIdentity == 'agent' ||
+                  participantName == 'HAAKEEM Assistant' ||
+                  participantName.contains('HAAKEEM');
+
+              final text = transcription.segment.text.trim();
+              if (text.isEmpty) continue;
+
+              if (isAgent) {
+                if (currentUserInput.isNotEmpty) {
+                  allDisplayItems
+                      .add(_buildLiveChatBubble(currentUserInput, true));
+                  currentUserInput = "";
+                }
+                currentAIResponse +=
+                    (currentAIResponse.isEmpty ? "" : " ") + text;
+              } else {
+                if (currentAIResponse.isNotEmpty) {
+                  allDisplayItems
+                      .add(_buildLiveChatBubble(currentAIResponse, false));
+                  currentAIResponse = "";
+                }
+                currentUserInput +=
+                    (currentUserInput.isEmpty ? "" : " ") + text;
+              }
+            }
+
+            if (currentUserInput.isNotEmpty) {
+              allDisplayItems.add(_buildLiveChatBubble(currentUserInput, true));
+            }
+            if (currentAIResponse.isNotEmpty) {
+              allDisplayItems
+                  .add(_buildLiveChatBubble(currentAIResponse, false));
+            }
+
+            if (allDisplayItems.isEmpty) {
+              return _buildVoiceWelcomeMessage();
+            }
+
+            return ListView.builder(
+              controller: _chatScrollController,
+              padding: const EdgeInsets.all(32),
+              itemCount: allDisplayItems.length,
+              itemBuilder: (context, index) => allDisplayItems[index],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSessionLoadingState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.primaryGreen.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(40),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 60,
+                  height: 60,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.mic,
-                size: 30,
-                color: AppColors.primaryGreen,
-              ),
-            ],
+                Icon(
+                  Icons.mic,
+                  size: 30,
+                  color: AppColors.primaryGreen,
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          'Initializing Voice Session...',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-            color: AppColors.textPrimary,
+          const SizedBox(height: 24),
+          Text(
+            'Initializing Voice Session...',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textPrimary,
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Setting up microphone and voice recognition',
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.textSecondary,
+          const SizedBox(height: 8),
+          Text(
+            'Setting up microphone and voice recognition',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
+
   /// Build live transcription bubble (real-time speech recognition)
   Widget _buildLiveTranscriptionBubble(String transcription) {
     return Padding(
